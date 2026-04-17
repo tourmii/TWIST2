@@ -16,7 +16,9 @@ class G1MimicCfg(HumanoidMimicCfg):
         history_len = 10
         
         num_observations = n_proprio + n_priv_latent + history_len*n_proprio + n_priv + extra_critic_obs 
-        num_privileged_obs = None
+        num_privileged_obs = num_observations
+
+        n_priv_mimic_obs = len(tar_motion_steps_priv) * n_mimic_obs 
 
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
@@ -298,7 +300,7 @@ class G1MimicCfg(HumanoidMimicCfg):
         
         # motion_file = f"{LEGGED_GYM_ROOT_DIR}/motion_data_configs/g1_lafan1.yaml"
 
-        motion_file = f"../../../../motion_data/LAFAN1_g1_gmr/dance1_subject2.pkl"
+        motion_file = f"{LEGGED_GYM_ROOT_DIR}/motion_data_configs/twist2_dataset.yaml"
 
         reset_consec_frames = 30
 
@@ -308,7 +310,7 @@ class G1MimicCfgPPO(HumanoidMimicCfgPPO):
     class runner(HumanoidMimicCfgPPO.runner):
         policy_class_name = 'ActorCriticMimic'
         algorithm_class_name = 'PPO'
-        runner_class_name = 'OnPolicyRunner'
+        runner_class_name = 'OnPolicyRunnerMimic'
         max_iterations = 30002 # number of policy updates
 
         # logging
