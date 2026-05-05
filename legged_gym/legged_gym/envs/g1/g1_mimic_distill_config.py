@@ -364,7 +364,7 @@ class G1MimicStuRLCfg(G1MimicPrivCfg):
 class G1MimicPrivCfgPPO(HumanoidMimicCfgPPO):
     seed = 1
     class runner(HumanoidMimicCfgPPO.runner):
-        policy_class_name = 'ActorCriticMimic'
+        policy_class_name = 'ActorCriticOMoE'
         algorithm_class_name = 'PPO'
         runner_class_name = 'OnPolicyRunnerMimic'
         max_iterations = 1_000_002 # number of policy updates
@@ -389,14 +389,25 @@ class G1MimicPrivCfgPPO(HumanoidMimicCfgPPO):
         # schedule = 'fixed' # could be adaptive, fixed
     
     class policy(HumanoidMimicCfgPPO.policy):
-        action_std = [0.7] * 12 + [0.4] * 3 + [0.5] * 14
-        init_noise_std = 1.0
-        obs_context_len = 11
+        # action_std = [0.7] * 12 + [0.4] * 3 + [0.5] * 14
+        # init_noise_std = 1.0
+        # obs_context_len = 11
         actor_hidden_dims = [512, 512, 256, 128]
         critic_hidden_dims = [512, 512, 256, 128]
         activation = 'silu'
-        layer_norm = True
-        motion_latent_dim = 128
+        # layer_norm = True
+        # motion_latent_dim = 128
+        init_noise_std     = 1.0
+
+        # ---- OMoE-specific ----
+        num_experts        = 6
+        omoe_feature_dim   = 256
+        omoe_expert_hidden = [512, 256]
+        omoe_router_hidden = 256
+        omoe_head_hidden   = [256]
+        omoe_top_k         = 4         # paper uses dense (None); 4 is sparse
+        router_noise_std   = 0.0       # set 0.1–0.3 if router collapses
+        load_balance_coef  = 1e-3 
         
         
 class G1MimicStuCfgDAgger(G1MimicPrivCfgPPO):
