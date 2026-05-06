@@ -143,7 +143,7 @@ class HistoryEncoder(nn.Module):
  
 
 class FutureMotionEncoder(nn.Module):
-    """Simplified encoder for future motion observations without attention."""
+    """Simplified MLP encoder for future motion observations."""
     
     def __init__(self, activation_fn, input_size, tsteps, output_size, 
                  attention_heads=4, dropout=0.1, temporal_embedding_dim=64):
@@ -153,10 +153,10 @@ class FutureMotionEncoder(nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         
-        # Simple approach: flatten all future observations and use MLP
-        total_input_size = input_size * tsteps  # Flatten future observations (ignore mask for now)
+        # Flatten all future observations into a single vector, then encode with MLP
+        total_input_size = input_size * tsteps
         
-        # Simple MLP encoder
+        # MLP encoder
         self.encoder = nn.Sequential(
             nn.Linear(total_input_size, 256),
             activation_fn,
@@ -176,21 +176,14 @@ class FutureMotionEncoder(nn.Module):
     def forward(self, obs):
         """
         Args:
-            obs: (batch_size, tsteps, input_size + 1)  # +1 for mask indicator
+            obs: (batch_size, tsteps, input_size)
+        Returns:
+            output: (batch_size, output_size)
         """
         batch_size = obs.shape[0]
-        
-        # Separate mask indicator from observations
-        future_obs = obs[:, :, :-1]  # (batch_size, tsteps, input_size)
-        mask_indicator = obs[:, :, -1]  # (batch_size, tsteps)
-        
-        # Simple approach: flatten and encode
-        # For now, ignore masking and just use all future observations
-        flattened = future_obs.reshape(batch_size, -1)  # (batch_size, tsteps * input_size)
-        
-        # Encode
+        # Flatten all future steps and features into a single vector
+        flattened = obs.reshape(batch_size, -1)  # (batch_size, tsteps * input_size)
         output = self.encoder(flattened)  # (batch_size, output_size)
-        
         return output
 
 
@@ -265,7 +258,7 @@ class ActorFuture(nn.Module):
         if self.num_single_future_observations > 0:
             self.future_encoder = FutureMotionEncoder(
                 activation, 
-                self.num_single_future_observations - 1,  # -1 because mask indicator is separate
+                self.num_single_future_observations,  # full obs per step, no mask channel
                 self.num_future_steps, 
                 future_latent_dim,
                 attention_heads=future_attention_heads,

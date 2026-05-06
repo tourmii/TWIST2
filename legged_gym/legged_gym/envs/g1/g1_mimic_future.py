@@ -53,15 +53,16 @@ class G1MimicFuture(G1MimicDistill):
         
         # Only initialize future motion components if obs_type is 'student_future'
         if self.obs_type == 'student_future':
-            # Initialize future motion target steps
+            # Initialize future motion target steps (use same dtype as _tar_motion_steps_priv)
             self._tar_motion_steps_future = torch.tensor(
                 getattr(cfg.env, 'tar_motion_steps_future', [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]), 
                 device=self.device, dtype=torch.long
             )
             
-            # Find indices of future steps in the privileged teacher steps
+            # Find indices of future steps within the privileged teacher steps.
+            # searchsorted requires both tensors to have the same dtype.
             self._tar_motion_steps_future_idx = torch.searchsorted(
-                self._tar_motion_steps_priv, self._tar_motion_steps_future
+                self._tar_motion_steps_priv.long(), self._tar_motion_steps_future
             )
             
             # Initialize masking buffer
@@ -87,25 +88,25 @@ class G1MimicFuture(G1MimicDistill):
             print(f"Force curriculum enabled with force application to {len(force_links)} links: {force_links}")
     
     def _get_unified_motion_data(self):
-        """Get unified motion data for both privileged and future frames in a single sampling call.
-        Returns processed motion data that can be used by both _get_mimic_obs and _get_future_motion_obs.
+        """Sample motion data for privileged steps only.
+
+        Future motion observations are derived from the same priv-step data using
+        pre-computed indices (_tar_motion_steps_future_idx), avoiding redundant
+        resampling of timesteps that already appear in the privileged step list.
         """
-        # Determine which time steps to sample
-        if self.obs_type == 'student_future' and hasattr(self, '_tar_motion_steps_future'):
-            all_steps = torch.cat([self._tar_motion_steps_priv, self._tar_motion_steps_future])
-            num_priv_steps = self._tar_motion_steps_priv.shape[0]
-            num_future_steps = self._tar_motion_steps_future.shape[0]
-        else:
-            all_steps = self._tar_motion_steps_priv
-            num_priv_steps = self._tar_motion_steps_priv.shape[0]
-            num_future_steps = 0
-        
-        total_steps = all_steps.shape[0]
+        # Only sample the privileged steps; future frames are indexed from this data.
+        num_priv_steps = self._tar_motion_steps_priv.shape[0]
+        num_future_steps = (
+            self._tar_motion_steps_future.shape[0]
+            if (self.obs_type == 'student_future' and hasattr(self, '_tar_motion_steps_future'))
+            else 0
+        )
+        total_steps = num_priv_steps
         assert total_steps > 0, "Invalid number of target observation steps"
         
-        # Single motion sampling call for all time steps
+        # Single motion sampling call for all privileged time steps
         motion_times = self._get_motion_times().unsqueeze(-1)
-        obs_motion_times = all_steps * self.dt + motion_times
+        obs_motion_times = self._tar_motion_steps_priv * self.dt + motion_times
         motion_ids_tiled = torch.broadcast_to(self._motion_ids.unsqueeze(-1), obs_motion_times.shape)
         motion_ids_tiled = motion_ids_tiled.flatten()
         obs_motion_times = obs_motion_times.flatten()
@@ -129,7 +130,7 @@ class G1MimicFuture(G1MimicDistill):
         whole_key_body_pos = body_pos[:, self._key_body_ids_motion, :] # local body pos
         whole_key_body_pos_global = convert_to_global_root_body_pos(root_pos=root_pos, root_rot=root_rot, body_pos=whole_key_body_pos)
         
-        # Reshape all observations (unified)
+        # Reshape all observations
         root_pos = root_pos.reshape(self.num_envs, total_steps, root_pos.shape[-1])
         root_vel = root_vel.reshape(self.num_envs, total_steps, root_vel.shape[-1])
         root_rot = root_rot.reshape(self.num_envs, total_steps, root_rot.shape[-1])
@@ -169,34 +170,34 @@ class G1MimicFuture(G1MimicDistill):
         }
 
     def _build_future_obs_from_data(self, motion_data):
-        """Build future motion observations from unified motion data."""
+        """Build future motion observations by indexing into existing priv-step data."""
         if self.obs_type != 'student_future':
             return torch.zeros(self.num_envs, 0, device=self.device)
             
         if motion_data['num_future_steps'] == 0:
             return torch.zeros(self.num_envs, 0, device=self.device)
         
-        # Extract future motion data (from privileged steps onwards)
-        num_priv_steps = motion_data['num_priv_steps']
+        # Use pre-computed indices to select future frames from the priv data.
+        # _tar_motion_steps_future_idx maps each future step to its position in
+        # _tar_motion_steps_priv, so no extra motion sampling is needed.
+        future_idx = self._tar_motion_steps_future_idx  # shape: (num_future_steps,)
         
-        # Get future frame data by slicing unified data
-        root_pos = motion_data['root_pos'][:, num_priv_steps:]
-        root_vel_local = motion_data['root_vel_local'][:, num_priv_steps:]
-        root_ang_vel_local = motion_data['root_ang_vel_local'][:, num_priv_steps:]
-        roll = motion_data['roll'][:, num_priv_steps:]
-        pitch = motion_data['pitch'][:, num_priv_steps:]
-        dof_pos = motion_data['dof_pos'][:, num_priv_steps:]
+        root_pos = motion_data['root_pos'][:, future_idx]
+        root_vel_local = motion_data['root_vel_local'][:, future_idx]
+        root_ang_vel_local = motion_data['root_ang_vel_local'][:, future_idx]
+        roll = motion_data['roll'][:, future_idx]
+        pitch = motion_data['pitch'][:, future_idx]
+        dof_pos = motion_data['dof_pos'][:, future_idx]
         
-        # Future motion observations (same rich structure as teacher priv_mimic_obs)
+        # Future motion observations: same structure as student mimic obs
+        # shape: (num_envs, num_future_steps, 6 + num_dof)
         future_obs = torch.cat((
-            # root position: xy velocity + z position
-            root_vel_local[..., :2], # 2 dims (xy velocity instead of xy position)
-            root_pos[..., 2:3], # 1 dim (z position)
-            # root rotation: roll/pitch + yaw angular velocity
-            roll, pitch, # 2 dims (roll/pitch orientation)
-            root_ang_vel_local[..., 2:3], # 1 dim (yaw angular velocity)
-            dof_pos, # num_dof dims
-        ), dim=-1) # shape: (num_envs, num_future_steps, 6 + num_dof)
+            root_vel_local[..., :2],       # 2 dims: xy velocity
+            root_pos[..., 2:3],            # 1 dim:  z position
+            roll, pitch,                   # 2 dims: roll/pitch orientation
+            root_ang_vel_local[..., 2:3],  # 1 dim:  yaw angular velocity
+            dof_pos,                       # num_dof dims
+        ), dim=-1)
         
         return future_obs
 
