@@ -4,7 +4,7 @@ from legged_gym import LEGGED_GYM_ROOT_DIR
 
 
 # TAR_MOTION_STEPS_FUTURE = [1,2,3,4,5]
-TAR_MOTION_STEPS_FUTURE = [0]
+TAR_MOTION_STEPS_FUTURE = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
 class G1MimicStuFutureCfg(G1MimicPrivCfg):
     """Student policy config with future motion support and curriculum masking.
     Extends existing G1MimicPrivCfg to add future motion capabilities."""
