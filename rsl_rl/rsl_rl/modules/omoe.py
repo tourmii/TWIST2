@@ -231,3 +231,14 @@ class OMoE(nn.Module):
     def aux_load_balancing_loss(self) -> torch.Tensor:
         assert self._last_alpha is not None, "Call forward() first."
         return self.load_balancing_loss(self._last_alpha)
+
+    def ortho_loss(self) -> torch.Tensor:
+        assert self._last_router_logits is not None, "Call forward() first."
+
+        B, M = self._last_router_logits.shape
+        logits = self._last_router_logits.unsqueeze(1)  # (B, 1, M)
+        logits_T = logits.transpose(1, 2)              # (B, M, 1)
+        sim_matrix = torch.bmm(logits, logits_T) / M   # (B, M, M)
+        identity = torch.eye(M, device=sim_matrix.device).unsqueeze(0)  # (1, M, M)
+        ortho_loss = ((sim_matrix - identity) ** 2).mean()
+        return ortho_loss

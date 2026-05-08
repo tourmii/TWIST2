@@ -4,7 +4,7 @@ from legged_gym import LEGGED_GYM_ROOT_DIR
 
 
 # TAR_MOTION_STEPS_FUTURE = [1,2,3,4,5]
-TAR_MOTION_STEPS_FUTURE = [0]
+TAR_MOTION_STEPS_FUTURE = [10 ,20]
 class G1MimicStuFutureCfg(G1MimicPrivCfg):
     """Student policy config with future motion support and curriculum masking.
     Extends existing G1MimicPrivCfg to add future motion capabilities."""
@@ -161,7 +161,7 @@ class G1MimicStuFutureCfgDAgger(G1MimicStuFutureCfg):
         pass
     
     class runner(G1MimicPrivCfgPPO.runner):
-        policy_class_name = 'ActorCriticFuture'
+        policy_class_name = 'ActorCriticOMoE'
         algorithm_class_name = 'DaggerPPO'
         runner_class_name = 'OnPolicyDaggerRunner'
         max_iterations = 30_001

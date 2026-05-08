@@ -13,8 +13,8 @@ robot_name="g1"
 exptid=$1
 device=$2
 
-task_name="${robot_name}_mimic"
-proj_name="${robot_name}_mimic"
+task_name="${robot_name}_priv_mimic"
+proj_name="${robot_name}_priv_mimic"
 
 
 # Run the training script

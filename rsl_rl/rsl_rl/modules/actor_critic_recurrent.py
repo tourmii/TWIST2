@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-from omoe import OMoE, _build_mlp
+from .omoe import OMoE, _build_mlp
 
 
 class ActorCriticOMoE(nn.Module):

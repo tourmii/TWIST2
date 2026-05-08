@@ -11,7 +11,7 @@ class G1MimicPrivCfg(HumanoidMimicCfg):
         tar_motion_steps = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45,
                          50, 55, 60, 65, 70, 75, 80, 85, 90, 95,]
         
-        num_envs = 4096
+        num_envs = 4
         num_actions = 29
         obs_type = 'priv' # 'student'
         n_priv_latent = 4 + 1 + 2*num_actions
@@ -334,7 +334,7 @@ class G1MimicPrivCfg(HumanoidMimicCfg):
         motion_smooth = True
         motion_decompose = False
 
-        motion_file = f"{LEGGED_GYM_ROOT_DIR}/motion_data_configs/g1_omomo+mocap_static+amass_walk.yaml"
+        motion_file = f"{LEGGED_GYM_ROOT_DIR}/motion_data_configs/twist2_dataset.yaml"
         
 
 
